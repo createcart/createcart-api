@@ -1,0 +1,40 @@
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test / type caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# ── Secrets / local run config (NEVER commit) ────────────
+# run.ps1 holds local secrets (Razorpay key secret, Google client id, etc.).
+# Keep the comment on its OWN line — git has no trailing-comment support.
+run.ps1
+.env
+.env.*
+secrets.*
+
+# ── Runtime data (tenant DB, seeds, carts, payments) ─────
+# Contains tenant password hashes and per-tenant order data — do not publish.
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Deploy / editors / OS ────────────────────────────────
+.vercel
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
