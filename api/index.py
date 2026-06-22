@@ -2,8 +2,8 @@
 
 Vercel's Python runtime serves the ASGI ``app`` exposed here, and ``vercel.json``
 rewrites every route to this function. We add ``src/`` to ``sys.path`` so the
-package imports without needing to be pip-installed (the SDKs come from
-``requirements.txt``).
+package imports without needing to be pip-installed (the SDKs and other deps come
+from ``pyproject.toml``, which is what Vercel's ``uv`` build installs).
 """
 
 import os
