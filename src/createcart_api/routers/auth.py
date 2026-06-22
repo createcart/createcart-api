@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/{tenant}", tags=["auth"])
 @router.get("/admin/me", dependencies=[Depends(require_tenant_admin)])
 def me(tenant: str = Path(...)) -> dict:
     out = {"tenant": tenant}
-    if settings.storage == "sqlite":
+    if settings.uses_db:
         rec = _database().get_tenant(tenant)
         if rec:
             out["id"] = rec["id"]

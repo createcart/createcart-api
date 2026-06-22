@@ -12,12 +12,16 @@ class Settings:
     def __init__(self) -> None:
         # Where data is persisted.
         self.data_dir = Path(os.environ.get("CREATECART_DATA_DIR", "data"))
-        # Storage backend: "sqlite" (per-tenant tables in one DB) or "json".
+        # Storage backend: "sqlite" (per-tenant tables in one DB), "postgres"
+        # (same schema on Postgres/Supabase), or "json" (per-tenant files).
         self.storage = os.environ.get("CREATECART_STORAGE", "sqlite")
         # SQLite database path (used when storage == "sqlite").
         self.db_path = os.environ.get(
             "CREATECART_DB", str(self.data_dir / "createcart.db")
         )
+        # Postgres/Supabase connection string (used when storage == "postgres").
+        # On serverless (Vercel) use the Supabase transaction pooler URI (:6543).
+        self.database_url = os.environ.get("DATABASE_URL", "")
         # Key required on all mutating (admin) endpoints.
         self.admin_key = os.environ.get("CREATECART_ADMIN_KEY", "createcart-admin")
         # Comma-separated allowed CORS origins ("*" for any during dev).
@@ -48,6 +52,12 @@ class Settings:
         self.auth_provider = os.environ.get(
             "CREATECART_AUTH_PROVIDER", "google" if self.google_client_id else "mock"
         )
+
+    @property
+    def uses_db(self) -> bool:
+        """True for the DB-backed registries (sqlite/postgres) that keep a
+        ``tenants`` table; False for JSON file mode."""
+        return self.storage in ("sqlite", "postgres")
 
 
 settings = Settings()

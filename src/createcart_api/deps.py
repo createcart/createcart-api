@@ -32,30 +32,54 @@ CART_ID_PATTERN = r"^[A-Za-z0-9_-]{1,128}$"
 
 
 @lru_cache(maxsize=1)
-def _database() -> Database:
-    """One shared SQLite Database handle for the process."""
+def _database():
+    """One shared tenant-registry DB handle for the process.
+
+    Postgres/Supabase when ``CREATECART_STORAGE=postgres`` (lazy import so a
+    SQLite-only dev install needs no psycopg), else SQLite.
+    """
+    if settings.storage == "postgres":
+        from createcart_store_postgres import PgDatabase
+
+        return PgDatabase(settings.database_url)
     return Database(settings.db_path)
 
 
 def _menu_store(tenant: str):
+    if settings.storage == "postgres":
+        from createcart_store_postgres import PgMenuStore
+
+        return PgMenuStore(_database(), tenant)
     if settings.storage == "sqlite":
         return SqliteMenuStore(_database(), tenant)
     return JSONFileStore(settings.data_dir / f"{tenant}.json")
 
 
 def _cart_store(tenant: str):
+    if settings.storage == "postgres":
+        from createcart_store_postgres import PgCartStore
+
+        return PgCartStore(_database(), tenant)
     if settings.storage == "sqlite":
         return SqliteCartStore(_database(), tenant)
     return JSONFileCartStore(settings.data_dir / "carts" / tenant)
 
 
 def _payment_store(tenant: str):
+    if settings.storage == "postgres":
+        from createcart_store_postgres import PgPaymentStore
+
+        return PgPaymentStore(_database(), tenant)
     if settings.storage == "sqlite":
         return SqlitePaymentStore(_database(), tenant)
     return JSONFilePaymentStore(settings.data_dir / "payments" / tenant)
 
 
 def _delivery_store(tenant: str):
+    if settings.storage == "postgres":
+        from createcart_store_postgres import PgDeliveryStore
+
+        return PgDeliveryStore(_database(), tenant)
     if settings.storage == "sqlite":
         return SqliteDeliveryStore(_database(), tenant)
     return JSONFileDeliveryStore(settings.data_dir / "deliveries" / tenant)
@@ -187,7 +211,7 @@ def require_tenant_admin(
 
     if x_admin_key and x_admin_key == settings.admin_key:
         return  # platform superuser
-    if settings.storage == "sqlite":
+    if settings.uses_db:
         record = _database().get_tenant(tenant)
         if record and verify_password(x_tenant_key, record.get("password_hash")):
             return

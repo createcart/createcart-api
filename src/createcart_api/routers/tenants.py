@@ -38,7 +38,7 @@ def _json_tenants() -> list[dict]:
 
 @router.get("")
 def list_tenants() -> list[dict]:
-    if settings.storage == "sqlite":
+    if settings.uses_db:
         return _database().list_tenants_full()   # id, name, base_url (no password)
     return _json_tenants()
 
@@ -49,7 +49,7 @@ def create_tenant(body: TenantCreate) -> dict:
     from ..security import hash_password
 
     name = body.name.strip()
-    if settings.storage == "sqlite":
+    if settings.uses_db:
         db = _database()
         try:
             tid = db.get_or_create_tenant(name, tenant_id=body.id)
@@ -69,7 +69,7 @@ def create_tenant(body: TenantCreate) -> dict:
 
 @router.get("/{name}")
 def get_tenant(name: str) -> dict:
-    if settings.storage == "sqlite":
+    if settings.uses_db:
         rec = _database().get_tenant(name)
         if rec is None:
             raise HTTPException(status_code=404, detail=f"no tenant named {name!r}")

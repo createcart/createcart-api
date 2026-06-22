@@ -52,8 +52,9 @@ uvicorn createcart_api.main:app --reload          # http://127.0.0.1:8000
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `CREATECART_STORAGE` | `sqlite` | `sqlite` (per-tenant tables in one DB) or `json` (per-tenant files) |
+| `CREATECART_STORAGE` | `sqlite` | `sqlite` (per-tenant tables in one DB), `postgres` (same schema on Postgres/Supabase), or `json` (per-tenant files) |
 | `CREATECART_DB` | `data/createcart.db` | SQLite database path (when storage = sqlite) |
+| `DATABASE_URL` | – | Postgres connection string (when storage = postgres). On Vercel use the Supabase **transaction pooler** URI (`:6543`) |
 | `CREATECART_DATA_DIR` | `data` | Directory for JSON storage / seeds |
 | `CREATECART_ADMIN_KEY` | `createcart-admin` | Platform-owner key for onboarding tenants (`X-Admin-Key`) |
 | `CREATECART_CORS_ORIGINS` | `*` | Comma-separated allowed origins |
@@ -143,12 +144,33 @@ Public reads need no auth. Writes require the relevant tier above.
 - **`sqlite`** (default) — one database, **separate tables per tenant**
   (`menu_items_<id>`, `carts_<id>`, `payments_<id>`, `deliveries_<id>`, …) plus a
   `tenants` registry. Backed by the `createcart-store-sqlite` SDK.
+- **`postgres`** — the **same per-tenant schema** on Postgres/Supabase. Set
+  `CREATECART_STORAGE=postgres` and `DATABASE_URL`. Backed by the
+  `createcart-store-postgres` SDK.
 - **`json`** — per-tenant JSON files under `CREATECART_DATA_DIR`. Backed by each
   SDK's `JSONFile*Store`.
 
-Both implement the same SDK storage protocols, so switching is a config change —
-no code changes. Swapping to Postgres later means writing `Pg*Store` classes with
-the same method signatures.
+All three implement the same SDK storage protocols, so switching backends is a
+config change — no code changes.
+
+## Deploy (Vercel + Supabase)
+
+This repo is Vercel-ready: `api/index.py` exposes the ASGI `app`, `vercel.json`
+rewrites every route to it, and `requirements.txt` installs the SDKs from the
+public monorepo.
+
+1. **Supabase** → create a project; copy the **transaction pooler** URI (`:6543`)
+   for `DATABASE_URL`, and the **direct** URI (`:5432`) for the one-time migration.
+2. **Vercel** → import this repo; set env vars (`CREATECART_STORAGE=postgres`,
+   `DATABASE_URL=<pooler URI>`, `CREATECART_ADMIN_KEY`, payment/auth keys,
+   `CREATECART_CORS_ORIGINS=https://<your-storefront>`). Deploy.
+3. **Migrate existing data** into Supabase (uses the direct `:5432` URI):
+   ```bash
+   pip install -e ../createcart-sdks/packages/store-postgres   # local only
+   python scripts/migrate_sqlite_to_postgres.py data/createcart.db "<direct URI>"
+   ```
+
+The per-operation connection model suits serverless behind the Supabase pooler.
 
 ## Onboarding a tenant
 
