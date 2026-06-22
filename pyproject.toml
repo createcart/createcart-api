@@ -36,6 +36,10 @@ dev = [
     "httpx>=0.27",
 ]
 
+[tool.hatch.metadata]
+# Allow the createcart-* SDK deps to be git ("direct reference") URLs.
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/createcart_api"]
 
