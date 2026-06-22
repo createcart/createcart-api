@@ -25,8 +25,10 @@ class Settings:
         # Key required on all mutating (admin) endpoints.
         self.admin_key = os.environ.get("CREATECART_ADMIN_KEY", "createcart-admin")
         # Comma-separated allowed CORS origins ("*" for any during dev).
+        # Trailing slashes are stripped — a browser Origin header never has one,
+        # so "https://site.app/" would otherwise never match and fail preflight.
         self.cors_origins = [
-            o.strip()
+            o.strip().rstrip("/")
             for o in os.environ.get("CREATECART_CORS_ORIGINS", "*").split(",")
             if o.strip()
         ]
