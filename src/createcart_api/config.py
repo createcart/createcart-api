@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 
@@ -24,14 +25,34 @@ class Settings:
         self.database_url = os.environ.get("DATABASE_URL", "")
         # Key required on all mutating (admin) endpoints.
         self.admin_key = os.environ.get("CREATECART_ADMIN_KEY", "createcart-admin")
-        # Comma-separated allowed CORS origins ("*" for any during dev).
-        # Trailing slashes are stripped — a browser Origin header never has one,
-        # so "https://site.app/" would otherwise never match and fail preflight.
-        self.cors_origins = [
+        # Allowed CORS origins (comma-separated). Supports:
+        #   - "*"                     → allow any origin (dev)
+        #   - exact origin            → "https://site.app"
+        #   - glob with "*"           → "https://*.vercel.app" (any subdomain)
+        # Trailing slashes are stripped — a browser Origin header never has one.
+        # Globs are compiled into allow_origin_regex (Starlette's allow_origins
+        # matches literal strings only, so a bare glob there matches nothing).
+        _raw = [
             o.strip().rstrip("/")
             for o in os.environ.get("CREATECART_CORS_ORIGINS", "*").split(",")
             if o.strip()
         ]
+        if "*" in _raw:                                  # allow-all wildcard
+            self.cors_origins = ["*"]
+            self.cors_origin_regex = None
+        else:
+            self.cors_origins = [o for o in _raw if "*" not in o]
+            _globs = [o for o in _raw if "*" in o]
+            _env_rx = os.environ.get("CREATECART_CORS_ORIGIN_REGEX", "").strip()
+            if _env_rx:
+                self.cors_origin_regex = _env_rx
+            elif _globs:
+                # "https://*.vercel.app" -> "^https://[^.]*\.vercel\.app$"
+                self.cors_origin_regex = "|".join(
+                    "^" + re.escape(g).replace(r"\*", "[^.]*") + "$" for g in _globs
+                )
+            else:
+                self.cors_origin_regex = None
         # Payments: "mock" (local, no keys) or "razorpay".
         self.payment_provider = os.environ.get("CREATECART_PAYMENT_PROVIDER", "mock")
         self.razorpay_key_id = os.environ.get("RAZORPAY_KEY_ID", "")
