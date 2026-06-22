@@ -25,19 +25,20 @@ The Python SDKs live in the separate `createcart-sdks` monorepo and are
 installed alongside this service (no private registry needed yet):
 
 ```bash
-# 1. install the SDKs (local path during dev) ...
+# 1. runtime libs + the SDKs as editable local checkouts
+pip install fastapi "uvicorn[standard]" "psycopg[binary]" pytest httpx
 pip install -e ../createcart-sdks/packages/registry \
             -e ../createcart-sdks/packages/cart \
             -e ../createcart-sdks/packages/payment \
             -e ../createcart-sdks/packages/delivery \
             -e ../createcart-sdks/packages/notify \
             -e ../createcart-sdks/packages/auth \
-            -e ../createcart-sdks/packages/store-sqlite
-#    ... or straight from git:
-#    pip install "git+https://github.com/createcart/createcart-sdks#subdirectory=packages/registry"
+            -e ../createcart-sdks/packages/store-sqlite \
+            -e ../createcart-sdks/packages/store-postgres
 
-# 2. install this API
-pip install -e ".[dev]"
+# 2. install this API WITHOUT deps — its pyproject pins the SDKs to git (for the
+#    Vercel build); --no-deps keeps your editable checkouts above instead.
+pip install -e . --no-deps
 
 # 3. run it
 uvicorn createcart_api.main:app --reload          # http://127.0.0.1:8000
@@ -57,7 +58,7 @@ uvicorn createcart_api.main:app --reload          # http://127.0.0.1:8000
 | `DATABASE_URL` | – | Postgres connection string (when storage = postgres). On Vercel use the Supabase **transaction pooler** URI (`:6543`) |
 | `CREATECART_DATA_DIR` | `data` | Directory for JSON storage / seeds |
 | `CREATECART_ADMIN_KEY` | `createcart-admin` | Platform-owner key for onboarding tenants (`X-Admin-Key`) |
-| `CREATECART_CORS_ORIGINS` | `*` | Comma-separated allowed origins |
+| `CREATECART_CORS_ORIGINS` | `*` | Comma-separated allowed origins. Supports a `*` glob (`https://*.vercel.app`) and ignores trailing slashes. |
 | `CREATECART_BUSINESS_NAME` | `CreateCart` | Display name (per deployment) |
 | `CREATECART_PAYMENT_PROVIDER` | `mock` | `mock` or `razorpay` |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | – | Razorpay creds (secret stays server-side) |
@@ -156,21 +157,30 @@ config change — no code changes.
 ## Deploy (Vercel + Supabase)
 
 This repo is Vercel-ready: `api/index.py` exposes the ASGI `app`, `vercel.json`
-rewrites every route to it, and `requirements.txt` installs the SDKs from the
-public monorepo.
+rewrites every route to it, and **Vercel builds from `pyproject.toml` with `uv`**
+(it installs the SDKs from the public monorepo; `[tool.hatch.metadata]
+allow-direct-references = true` lets the git deps build).
 
 1. **Supabase** → create a project; copy the **transaction pooler** URI (`:6543`)
-   for `DATABASE_URL`, and the **direct** URI (`:5432`) for the one-time migration.
+   for `DATABASE_URL`, and the **session pooler** URI (`:5432`) for the one-time
+   migration. URL-encode the password (`@`→`%40`); append `?sslmode=require`.
 2. **Vercel** → import this repo; set env vars (`CREATECART_STORAGE=postgres`,
-   `DATABASE_URL=<pooler URI>`, `CREATECART_ADMIN_KEY`, payment/auth keys,
-   `CREATECART_CORS_ORIGINS=https://<your-storefront>`). Deploy.
-3. **Migrate existing data** into Supabase (uses the direct `:5432` URI):
+   `DATABASE_URL=<transaction-pooler URI>`, `CREATECART_ADMIN_KEY`, payment/auth keys,
+   `CREATECART_CORS_ORIGINS=https://<your-storefront>`). Deploy; check `/health`.
+3. **Migrate existing data** into Supabase (use the **session** pooler, port 5432):
    ```bash
    pip install -e ../createcart-sdks/packages/store-postgres   # local only
-   python scripts/migrate_sqlite_to_postgres.py data/createcart.db "<direct URI>"
+   python scripts/migrate_sqlite_to_postgres.py data/createcart.db \
+     "host=aws-0-<region>.pooler.supabase.com port=5432 dbname=postgres user=postgres.<ref> password=<pw> sslmode=require"
    ```
 
-The per-operation connection model suits serverless behind the Supabase pooler.
+The per-operation connection model suits serverless behind the Supabase pooler
+(prepared statements are disabled in `store-postgres` for pgbouncer compatibility).
+
+> **Important:** use the Supabase **pooler** host (IPv4), not the direct
+> `db.<ref>.supabase.co` host (IPv6 — unreachable from Vercel). The pooler region in
+> the host must match your project. A fuller troubleshooting table lives in the
+> repo-root `README.md` (§13).
 
 ## Onboarding a tenant
 
