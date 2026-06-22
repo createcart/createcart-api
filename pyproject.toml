@@ -10,14 +10,24 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "CreateCart" }]
 license = { text = "Proprietary" }
-# NOTE: the three Python SDKs live in the createcart-sdks monorepo and are
-# installed from local paths until a private registry exists:
-#   pip install -e ../createcart-sdks/packages/registry \
-#               -e ../createcart-sdks/packages/cart \
-#               -e ../createcart-sdks/packages/payment
+# The Python SDKs live in the public createcart-sdks monorepo and are pulled
+# from git here (this is what the Vercel build installs via `pip install .`).
+# For LOCAL development against editable SDK checkouts, install those first and
+# then `pip install -e . --no-deps` so the git pins don't shadow them:
+#   pip install -e ../createcart-sdks/packages/registry -e ../createcart-sdks/packages/cart ...
+#   pip install -e ".[dev]" --no-deps
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
+    "psycopg[binary]>=3.1",
+    "createcart-registry @ git+https://github.com/createcart/createcart-sdks@main#subdirectory=packages/registry",
+    "createcart-cart @ git+https://github.com/createcart/createcart-sdks@main#subdirectory=packages/cart",
+    "createcart-payment @ git+https://github.com/createcart/createcart-sdks@main#subdirectory=packages/payment",
+    "createcart-delivery @ git+https://github.com/createcart/createcart-sdks@main#subdirectory=packages/delivery",
+    "createcart-notify @ git+https://github.com/createcart/createcart-sdks@main#subdirectory=packages/notify",
+    "createcart-auth @ git+https://github.com/createcart/createcart-sdks@main#subdirectory=packages/auth",
+    "createcart-store-sqlite @ git+https://github.com/createcart/createcart-sdks@main#subdirectory=packages/store-sqlite",
+    "createcart-store-postgres @ git+https://github.com/createcart/createcart-sdks@main#subdirectory=packages/store-postgres",
 ]
 
 [project.optional-dependencies]
