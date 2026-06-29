@@ -132,3 +132,26 @@ def test_tenant_isolation(client):
     client.post(f"{BASE}/items", json={"name": "Dosa"}, headers=ADMIN)
     other = client.get("/api/other-tenant/menu").json()
     assert other["items"] == []
+
+
+def test_registry_not_process_cached(client):
+    """Serverless consistency guard.
+
+    Reads must reflect the database, never a cached in-memory snapshot — that
+    snapshot is what made admin menu edits show up late / wrong on the website
+    (a different serverless instance kept serving its stale copy). So:
+      • each get_registry() must be a fresh instance, and
+      • a write made through one must be visible to the very next read,
+        with no cache_clear() in between.
+    """
+    from createcart_api import deps
+
+    assert deps.get_registry(T) is not deps.get_registry(T)
+
+    deps.get_registry(T).add_item(name="Bobbatlu", price="40")
+    assert deps.get_registry(T).find_item("bobbatlu") is not None
+
+
+def test_menu_responses_are_not_cacheable(client):
+    """Belt-and-suspenders: no browser/proxy should cache menu data."""
+    assert client.get(f"{BASE}/menu").headers.get("cache-control") == "no-store"

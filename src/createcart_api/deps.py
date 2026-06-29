@@ -141,14 +141,31 @@ def get_delivery_service(
     return delivery_service_for(tenant)
 
 
-@lru_cache(maxsize=None)
 def _registry_for(tenant: str) -> MenuRegistry:
-    """One cached MenuRegistry per tenant, backed by the configured store."""
+    """Build a fresh MenuRegistry from the store on every call.
+
+    Deliberately NOT process-cached. The registry keeps the catalog in memory,
+    so a cached instance would keep serving the snapshot it loaded at cold
+    start — on serverless (many instances) that means a menu change saved by one
+    instance (e.g. the admin app) is invisible to reads served by another
+    (e.g. the website) until that instance is recycled. It also risks lost
+    updates, since save() rewrites the whole catalog from a possibly-stale copy.
+
+    Reloading per request makes the website, the apps and the admin console all
+    reflect a change the instant it's saved. The backing load() is just a few
+    indexed SELECTs, so the cost is negligible — exactly how deliveries already
+    work (a fresh service per request).
+    """
     return MenuRegistry(store=_menu_store(tenant), tenant=tenant)
 
 
+# Back-compat: test fixtures call ``deps._registry_for.cache_clear()``. There is
+# no cache to clear now, so keep it as a harmless no-op.
+_registry_for.cache_clear = lambda: None  # type: ignore[attr-defined]
+
+
 def get_registry(tenant: str = Path(..., pattern=TENANT_PATTERN)) -> MenuRegistry:
-    """Resolve the registry for the ``{tenant}`` path segment.
+    """Resolve a fresh registry for the ``{tenant}`` path segment.
 
     The pattern keeps tenant ids slug-safe so they can't escape the data dir.
     """

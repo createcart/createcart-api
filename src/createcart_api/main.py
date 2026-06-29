@@ -34,6 +34,18 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def _no_store(request, call_next):
+        """Never let a browser or proxy serve cached API data.
+
+        Everything here is dynamic (menus change, carts/orders are live), so a
+        stale cached response would show wrong info. ``setdefault`` lets any
+        endpoint opt into its own caching later if needed.
+        """
+        response = await call_next(request)
+        response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
     @app.get("/health", tags=["meta"])
     def health() -> dict:
         return {"status": "ok"}
