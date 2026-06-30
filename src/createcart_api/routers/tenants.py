@@ -14,7 +14,7 @@ import glob
 import os
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from ..config import settings
 from ..deps import _database, require_admin
@@ -78,3 +78,16 @@ def get_tenant(name: str) -> dict:
     if any(t["name"] == name for t in _json_tenants()):
         return {"id": None, "name": name}
     raise HTTPException(status_code=404, detail=f"no tenant named {name!r}")
+
+
+@router.delete("/{name}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_tenant(name: str) -> Response:
+    """Off-board a tenant: delete the registry row and DROP all its per-tenant
+    tables. Destructive and irreversible — admin-key only (router dependency)."""
+    if not settings.uses_db:
+        raise HTTPException(
+            status_code=400, detail="tenant deletion requires a database backend"
+        )
+    if not _database().delete_tenant(name):
+        raise HTTPException(status_code=404, detail=f"no tenant named {name!r}")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

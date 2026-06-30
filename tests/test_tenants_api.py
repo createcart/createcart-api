@@ -71,3 +71,26 @@ def test_using_a_tenant_registers_it(client):
     client.post("/api/gamma/items", json={"name": "X", "price": "1"}, headers=ADMIN)
     names = [t["name"] for t in client.get("/api/_tenants", headers=ADMIN).json()]
     assert "gamma" in names
+
+
+def test_delete_requires_admin(client):
+    client.post("/api/_tenants", json={"name": "alpha"}, headers=ADMIN)
+    assert client.delete("/api/_tenants/alpha").status_code == 401
+
+
+def test_delete_tenant_removes_it_and_its_data(client):
+    # onboard + add a menu item (creates per-tenant tables)
+    client.post("/api/_tenants", json={"name": "alpha", "password": "p"}, headers=ADMIN)
+    client.post("/api/alpha/items", json={"name": "Dosa", "price": "60"}, headers=ADMIN)
+    assert client.get("/api/alpha/items").json()  # has data
+
+    r = client.delete("/api/_tenants/alpha", headers=ADMIN)
+    assert r.status_code == 204
+    # gone from the registry, and its data is gone (fresh empty tables on re-touch)
+    assert client.get("/api/_tenants/alpha", headers=ADMIN).status_code == 404
+    assert "alpha" not in [t["name"] for t in client.get("/api/_tenants", headers=ADMIN).json()]
+    assert client.get("/api/alpha/items").json() == []
+
+
+def test_delete_unknown_tenant_404(client):
+    assert client.delete("/api/_tenants/ghost", headers=ADMIN).status_code == 404
