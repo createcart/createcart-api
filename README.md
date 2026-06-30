@@ -82,12 +82,19 @@ uvicorn createcart_api.main:app --reload          # http://127.0.0.1:8000
 
 Public reads need no auth. Writes require the relevant tier above.
 
+> **Always fresh, never cached.** Every response sends `Cache-Control: no-store`,
+> and the menu registry is built **per request** (it reads the store each time)
+> rather than cached in memory. On serverless this is what keeps a menu change
+> saved by one instance (e.g. the admin app) instantly visible to reads served by
+> any other (the website, the apps) — no stale snapshots.
+
 **Platform — tenant registry** (`X-Admin-Key`)
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/api/_tenants` | List tenants |
-| POST | `/api/_tenants` | Onboard a tenant `{ name, password?, base_url?, id? }` |
+| POST | `/api/_tenants` | Onboard a tenant `{ name, password?, base_url?, id? }` (idempotent upsert — also resets password / base_url) |
 | GET | `/api/_tenants/{name}` | Get one tenant |
+| DELETE | `/api/_tenants/{name}` | Off-board a tenant — deletes it and **drops all its tables** (irreversible) |
 
 **Customer auth** (not tenant-scoped)
 | Method | Path | Purpose |
@@ -106,7 +113,8 @@ Public reads need no auth. Writes require the relevant tier above.
 | GET | `/menu` · `/items` · `/items/{id}` · `/categories` · `/combos` | – | Read catalog (filters: `category`, `tag`, `available_only`, `in_stock_only`, `q`) |
 | POST | `/items` | tenant | Create item |
 | PATCH | `/items/{id}` | tenant | Update fields |
-| DELETE | `/items/{id}` | tenant | Delete item |
+| DELETE | `/items/{id}` | tenant | Delete one item |
+| DELETE | `/items` | tenant | Clear the whole menu (all items + combos; keeps categories) → `{ removed }` |
 | POST | `/items/{id}/price` · `/availability` · `/stock/set` · `/stock/adjust` | tenant | Pricing / availability / stock |
 | POST | `/categories` · `/combos` | tenant | Create category / combo |
 
