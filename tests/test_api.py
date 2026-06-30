@@ -155,3 +155,17 @@ def test_registry_not_process_cached(client):
 def test_menu_responses_are_not_cacheable(client):
     """Belt-and-suspenders: no browser/proxy should cache menu data."""
     assert client.get(f"{BASE}/menu").headers.get("cache-control") == "no-store"
+
+
+def test_clear_menu_requires_admin(client):
+    client.post(f"{BASE}/items", json={"name": "Dosa", "price": "60"}, headers=ADMIN)
+    assert client.delete(f"{BASE}/items").status_code == 401
+
+
+def test_clear_menu_wipes_all_items(client):
+    for n in ("Dosa", "Idli", "Vada"):
+        client.post(f"{BASE}/items", json={"name": n, "price": "10"}, headers=ADMIN)
+    r = client.delete(f"{BASE}/items", headers=ADMIN)
+    assert r.status_code == 200
+    assert r.json()["removed"] == 3
+    assert client.get(f"{BASE}/items").json() == []

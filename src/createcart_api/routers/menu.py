@@ -127,6 +127,13 @@ def delete_item(item_id: str, reg: MenuRegistry = Depends(get_registry)) -> None
         raise _not_found(exc)
 
 
+@router.delete("/items", dependencies=admin)
+def clear_menu(reg: MenuRegistry = Depends(get_registry)) -> dict:
+    """Wipe the entire menu — every item (and combos). Categories are kept.
+    Tenant-admin only. Returns how many items were removed."""
+    return {"removed": reg.clear_items()}
+
+
 @router.post("/items/{item_id}/price", response_model=MenuItem, dependencies=admin)
 def set_price(
     item_id: str, body: PriceUpdate, reg: MenuRegistry = Depends(get_registry)
